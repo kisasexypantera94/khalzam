@@ -12,10 +12,13 @@ import (
 	"math"
 	"math/cmplx"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
-const windowSize = 8192
+const chunkSize = 8192
+const windowSize = 4096
+const fuzzFactor = 2
 
 var freqBins = [...]int16{40, 80, 120, 180, 300}
 
@@ -33,7 +36,7 @@ func Decode(filename string) []float64 {
 	decoder.Format(rate, channels, mpg123.ENC_SIGNED_16)
 
 	var rawData []float64
-	tmp := make([]int16, windowSize)
+	tmp := make([]int16, chunkSize)
 	for {
 		buf := make([]byte, 2*len(tmp))
 		_, err := decoder.Read(buf)
@@ -44,12 +47,12 @@ func Decode(filename string) []float64 {
 
 		binary.Read(bytes.NewBuffer(buf), binary.LittleEndian, tmp)
 		if channels == 2 {
-			for i := 1; i < len(tmp); i += 2 {
-				rawData = append(rawData, (float64)(tmp[i-1]+tmp[i])/2/math.MaxInt16)
+			for i := 2; i < len(tmp); i += 4 {
+				rawData = append(rawData, (float64)(tmp[i-2]+tmp[i])/2/math.MaxInt32)
 			}
 		} else {
 			for i := 0; i < len(tmp); i++ {
-				rawData = append(rawData, (float64)(tmp[i])/math.MaxInt16)
+				rawData = append(rawData, (float64)(tmp[i])/math.MaxInt32)
 			}
 		}
 	}
@@ -89,7 +92,13 @@ func getKeyPoints(compArr []complex128) string {
 		}
 	}
 
-	return hash(recordPoints)
+	tmp := (recordPoints[3]-(recordPoints[3]%fuzzFactor))*1e8 +
+		(recordPoints[2]-(recordPoints[2]%fuzzFactor))*1e5 +
+		(recordPoints[1]-(recordPoints[1]%fuzzFactor))*1e2 +
+		(recordPoints[0] - recordPoints[0]%fuzzFactor)
+
+	// return hash(recordPoints)
+	return strconv.Itoa((int)(tmp))
 }
 
 func hash(arr []uint) string {
@@ -97,7 +106,8 @@ func hash(arr []uint) string {
 	str := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(arr)), ""), "[]")
 	io.WriteString(h, str)
 
-	return fmt.Sprintf("%x", h.Sum(nil))
+	// return fmt.Sprintf("%x", h.Sum(nil))
+	return str
 }
 
 // StereoToMono converts file to mono using ffmpeg
