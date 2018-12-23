@@ -3,7 +3,9 @@ package musiclibrary
 import (
 	"database/sql"
 	"fmt"
+	"github.com/kisasexypantera94/khalzam/fingerprint"
 	"log"
+	"strings"
 )
 
 const (
@@ -31,10 +33,21 @@ func (lib *MusicLibrary) Close() {
 }
 
 // InsertSong inserts song into library
-func (lib *MusicLibrary) InsertSong(song string) error {
-	statement, err := lib.db.Prepare("INSERT INTO songs(song) VALUES($1)")
-	checkErr(err)
-	_, err = statement.Exec(song)
+func (lib *MusicLibrary) InsertSong(filename string) error {
+	dotIdx := strings.LastIndex(filename, ".")
+	slashIdx := strings.LastIndex(filename, "/")
+	songName := filename[slashIdx + 1:dotIdx]
+	var songID int
+	err := lib.db.QueryRow("INSERT INTO songs(song) VALUES($1) returning sid;", songName).Scan(&songID)
+	if err != nil {
+		return err
+	}
+
+	hashArray := fingerprint.Fingerprint(filename)
+	for time, hash := range hashArray {
+		lib.db.QueryRow("INSERT INTO hashes(hash, time, sid) VALUES($1, $2, $3)", hash, time, songID)
+	}
+
 	return err
 }
 

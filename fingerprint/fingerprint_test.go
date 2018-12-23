@@ -5,7 +5,7 @@ import (
 )
 
 func TestDecodeMpg123(t *testing.T) {
-	Decode("../resources/journeydontstop.mp3")
+	Decode("../resources/Metallica - Master Of Puppets.mp3")
 }
 
 // func TestDecodeGo(t *testing.T) {
