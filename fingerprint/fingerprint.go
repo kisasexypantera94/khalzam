@@ -1,26 +1,23 @@
 package fingerprint
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 	"github.com/bobertlo/go-mpg123/mpg123"
-	"github.com/hajimehoshi/go-mp3"
 	"github.com/mjibson/go-dsp/fft"
 	"io"
 	"log"
 	"math"
 	"math/cmplx"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 )
 
 const chunkSize = 1024
-const windowSize = 4096
+const fftWindowSize = 8192
 const fuzzFactor = 2
 
 var freqBins = [...]int16{40, 80, 120, 180, 300}
@@ -38,8 +35,8 @@ func Decode(filename string) []float64 {
 	decoder.FormatNone()
 	decoder.Format(rate, channels, mpg123.ENC_SIGNED_16)
 
-	var rawData1 []float32
-	var rawData2 []float32
+	var pcmLeft []float32
+	var pcmRight []float32
 	tmp := make([]int16, chunkSize/2)
 	for {
 		buf := make([]byte, chunkSize)
@@ -54,80 +51,36 @@ func Decode(filename string) []float64 {
 			for i := 0; i < len(tmp); i += 2 {
 				left := (tmp[i])
 				right := (tmp[i+1])
-				rawData1 = append(rawData1, (float32)(left)/(float32)(math.MaxInt16))
-				rawData2 = append(rawData2, (float32)(right)/(float32)(math.MaxInt16))
+				pcmLeft = append(pcmLeft, (float32)(left)/(float32)(math.MaxInt16))
+				pcmRight = append(pcmRight, (float32)(right)/(float32)(math.MaxInt16))
 			}
 		} else {
 			for i := 0; i < len(tmp); i++ {
-				x := tmp[i]
-				rawData1 = append(rawData1, (float32)(x)/(float32)(math.MaxInt16))
+				mono := tmp[i]
+				pcmLeft = append(pcmLeft, (float32)(mono)/(float32)(math.MaxInt16))
 			}
 		}
 	}
 
-	rawData64 := make([]float64, len(rawData1) + len(rawData2))
-	for i := range rawData1 {
-		rawData64[i] = (float64)(rawData1[i])
+	pcm64 := make([]float64, len(pcmLeft)+len(pcmRight))
+	for i := range pcmLeft {
+		pcm64[i] = (float64)(pcmLeft[i])
 	}
-	for i := range rawData2 {
-		rawData64[i + len(rawData1)] = (float64)(rawData2[i])
+	for i := range pcmRight {
+		pcm64[i+len(pcmLeft)] = (float64)(pcmRight[i])
 	}
 
 	decoder.Delete()
-	return rawData64
-}
-
-func Decode2(filename string) []float64 {
-	file, _ := os.Open(filename)
-	defer file.Close()
-	d, _ := mp3.NewDecoder(file)
-	defer d.Close()
-
-	var buf bytes.Buffer
-	w := bufio.NewWriter(&buf)
-	written, _ := io.Copy(w, d)
-	w.Flush()
-	r := bufio.NewReader(&buf)
-
-	tmp := make([]int16, written/2)
-	var rawData []float32
-	binary.Read(r, binary.LittleEndian, tmp)
-	for i := 0; i < len(tmp); i += 2 {
-		x := (tmp[i] + tmp[i+1]) / 2
-		rawData = append(rawData, (float32)(x)/(float32)(math.MaxInt16))
-	}
-
-	rawData64 := make([]float64, len(rawData))
-	for i := range rawData {
-		fmt.Println(rawData[i])
-		rawData64[i] = (float64)(rawData[i])
-	}
-	f, _ := os.Create(filename + "raw.raw")
-	binary.Write(f, binary.LittleEndian, rawData64)
-	f.Close()
-
-	return rawData64
+	return pcm64
 }
 
 // Fingerprint returns a fingerprint of song
 func Fingerprint(filename string) (hashArray []string) {
 	rawData := Decode(filename)
-	f, _ := os.Create(filename + "raw.raw")
-	binary.Write(f, binary.LittleEndian, rawData)
-	f.Close()
-	blockNum := len(rawData) / windowSize
+	blockNum := len(rawData) / fftWindowSize
 
 	for i := 0; i < blockNum; i++ {
-		complexArray := fft.FFTReal(rawData[i*windowSize : i*windowSize+windowSize])
-		// complexArray := make([]complex128, windowSize)
-		// for j := 0; j < windowSize; j++ {
-		// 	complexArray[j] = complex(rawData[i*windowSize+j], 0)
-		// }
-		// plan := fftw.NewPlan1d(complexArray, false, false)
-
-		// // perform Fourier transform
-		// plan.Execute()
-		// plan.Free()
+		complexArray := fft.FFTReal(rawData[i*fftWindowSize : i*fftWindowSize+fftWindowSize])
 		hashArray = append(hashArray, getKeyPoints(complexArray))
 	}
 
@@ -170,8 +123,8 @@ func hash(arr []uint) string {
 	return str
 }
 
-// StereoToMono converts file to mono using ffmpeg
-func StereoToMono(filename string) string {
+// stereoToMonoFFMPEG converts file to mono using ffmpeg
+func stereoToMonoFFMPEG(filename string) string {
 	dotIdx := strings.LastIndex(filename, ".")
 	monoFilename := filename[:dotIdx] + "_mono"
 	if dotIdx != -1 {

@@ -1,13 +1,12 @@
 package musiclibrary
 
 import (
-	"sync"
-	// "fmt"
 	_ "github.com/lib/pq"
+	"sync"
 	"testing"
 )
 
-func TestRecogniseSong(t *testing.T) {
+func TestIndexing(t *testing.T) {
 	musicLib, err := Open()
 	checkErr(err)
 	wg := sync.WaitGroup{}
@@ -26,6 +25,11 @@ func TestRecogniseSong(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		musicLib.DeleteSong("Mogwai - Travel Is Dangerous")
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		musicLib.DeleteSong("journeydontstop")
 	}()
 	wg.Wait()
 
@@ -50,10 +54,38 @@ func TestRecogniseSong(t *testing.T) {
 		musicLib.InsertSong("../resources/journeydontstop.mp3")
 	}()
 	wg.Wait()
+}
 
-	musicLib.RecogniseSong("../resources/intergalactic_sample.mp3")
-	musicLib.RecogniseSong("../resources/intergalacticnew.mp3")
-	musicLib.RecogniseSong("../resources/modjo_lady_sample.mp3")
-	musicLib.RecogniseSong("../resources/travel_sample.mp3")
-	musicLib.RecogniseSong("../resources/travel_chorus_sample.mp3")
+func TestRecogniseOnly(t *testing.T) {
+	musicLib, err := Open()
+	checkErr(err)
+	defer musicLib.Close()
+	wg := sync.WaitGroup{}
+	defer musicLib.Close()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		musicLib.RecogniseSong("../resources/intergalactic_sample.mp3")
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		musicLib.RecogniseSong("../resources/travel_chorus_sample.mp3")
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		musicLib.RecogniseSong("../resources/travel_sample.mp3")
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		musicLib.RecogniseSong("../resources/modjo_lady_sample.mp3")
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		musicLib.RecogniseSong("../resources/intergalacticnew.mp3")
+	}()
+	wg.Wait()
 }
