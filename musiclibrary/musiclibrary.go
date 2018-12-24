@@ -112,7 +112,7 @@ func (lib *MusicLibrary) RecogniseSong(filename string) {
 
 // DeleteSong deletes song from library
 func (lib *MusicLibrary) DeleteSong(song string) error {
-	statement, err := lib.db.Prepare("DELETE FROM songs WHERE song=$1Mogwai - Travel Is Dangerous;")
+	statement, err := lib.db.Prepare("DELETE FROM songs WHERE song=$1;")
 	checkErr(err)
 	_, err = statement.Exec(song)
 	return err
