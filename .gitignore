@@ -3,3 +3,6 @@
 resources*
 *raw
 converttomonopcm.sh
+main.go
+proto.ipynb
+*.ipynb_checkpoints*
