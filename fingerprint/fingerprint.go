@@ -6,24 +6,28 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/bobertlo/go-mpg123/mpg123"
+	"github.com/jfreymuth/oggvorbis"
 	"github.com/mjibson/go-dsp/fft"
+	"github.com/youpy/go-wav"
 	"io"
 	"log"
 	"math"
 	"math/cmplx"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
 const chunkSize = 1024
-const fftWindowSize = 8192
+const fftWindowSize = 4096
 const fuzzFactor = 2
 
 var freqBins = [...]int16{40, 80, 120, 180, 300}
 
-// Decode returns float32 slice of samples
-func Decode(filename string) []float64 {
+// DecodeMp3Int16 returns float32 slice of samples
+func DecodeMp3Int16(filename string) []float64 {
 	decoder, err := mpg123.NewDecoder("")
 	checkErr(err)
 
@@ -74,13 +78,67 @@ func Decode(filename string) []float64 {
 	return pcm64
 }
 
+// DecodeOggFloat64 decodes ogg files
+func DecodeOggFloat64(filename string) []float64 {
+	f, _ := os.Open(filename)
+	defer f.Close()
+	var r io.Reader
+	r = f
+	pcm32, _, _ := oggvorbis.ReadAll(r)
+	pcm64 := make([]float64, len(pcm32))
+	for i := 0; i < len(pcm32); i++ {
+		pcm64[i] = (float64)(pcm32[i])
+	}
+	fn, _ := os.Create(filename + ".raw")
+	defer fn.Close()
+	binary.Write(fn, binary.LittleEndian, pcm64)
+
+	return pcm64
+}
+
+// DecodeWavFloat64 decodes wav file to slice of float64 values
+func DecodeWavFloat64(filename string) []float64 {
+	file, _ := os.Open(filename)
+	reader := wav.NewReader(file)
+
+	defer file.Close()
+
+	var pcm []float64
+	for {
+		samples, err := reader.ReadSamples()
+		if err == io.EOF {
+			break
+		}
+
+		for _, sample := range samples {
+			pcm = append(pcm, (reader.FloatValue(sample, 0)+reader.FloatValue(sample, 1))/2)
+		}
+	}
+
+	f, _ := os.Create(filename + ".raw")
+	binary.Write(f, binary.LittleEndian, pcm)
+
+	return pcm
+}
+
 // Fingerprint returns a fingerprint of song
 func Fingerprint(filename string) (hashArray []string) {
-	rawData := Decode(filename)
-	blockNum := len(rawData) / fftWindowSize
+	var pcm64 []float64
+	switch filepath.Ext(filename) {
+	case ".mp3":
+		pcm64 = DecodeMp3Int16(filename)
+
+	case ".wav":
+		pcm64 = DecodeWavFloat64(filename)
+
+	case ".ogg":
+		pcm64 = DecodeOggFloat64(filename)
+	}
+
+	blockNum := len(pcm64) / fftWindowSize
 
 	for i := 0; i < blockNum; i++ {
-		complexArray := fft.FFTReal(rawData[i*fftWindowSize : i*fftWindowSize+fftWindowSize])
+		complexArray := fft.FFTReal(pcm64[i*fftWindowSize : i*fftWindowSize+fftWindowSize])
 		hashArray = append(hashArray, getKeyPoints(complexArray))
 	}
 
