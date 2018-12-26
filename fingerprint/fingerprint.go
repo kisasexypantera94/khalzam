@@ -26,8 +26,8 @@ const fuzzFactor = 2
 
 var freqBins = [...]int16{40, 80, 120, 180, 300}
 
-// DecodeMp3Int16 returns float32 slice of samples
-func DecodeMp3Int16(filename string) []float64 {
+// DecodeMp3 returns float32 slice of samples
+func DecodeMp3(filename string) []float64 {
 	decoder, err := mpg123.NewDecoder("")
 	checkErr(err)
 
@@ -78,8 +78,8 @@ func DecodeMp3Int16(filename string) []float64 {
 	return pcm64
 }
 
-// DecodeOggFloat64 decodes ogg files
-func DecodeOggFloat64(filename string) []float64 {
+// DecodeOgg decodes ogg files
+func DecodeOgg(filename string) []float64 {
 	f, _ := os.Open(filename)
 	defer f.Close()
 	var r io.Reader
@@ -96,8 +96,8 @@ func DecodeOggFloat64(filename string) []float64 {
 	return pcm64
 }
 
-// DecodeWavFloat64 decodes wav file to slice of float64 values
-func DecodeWavFloat64(filename string) []float64 {
+// DecodeWav decodes wav file to slice of float64 values
+func DecodeWav(filename string) []float64 {
 	file, _ := os.Open(filename)
 	reader := wav.NewReader(file)
 
@@ -126,13 +126,13 @@ func Fingerprint(filename string) (hashArray []string) {
 	var pcm64 []float64
 	switch filepath.Ext(filename) {
 	case ".mp3":
-		pcm64 = DecodeMp3Int16(filename)
+		pcm64 = DecodeMp3(filename)
 
 	case ".wav":
-		pcm64 = DecodeWavFloat64(filename)
+		pcm64 = DecodeWav(filename)
 
 	case ".ogg":
-		pcm64 = DecodeOggFloat64(filename)
+		pcm64 = DecodeOgg(filename)
 	}
 
 	blockNum := len(pcm64) / fftWindowSize
