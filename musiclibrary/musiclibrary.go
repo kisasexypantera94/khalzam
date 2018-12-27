@@ -7,6 +7,7 @@ import (
 	"github.com/remeh/sizedwaitgroup"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -33,12 +34,18 @@ func Open() (*MusicLibrary, error) {
 }
 
 // Close closes library
-func (lib *MusicLibrary) Close() {
-	lib.db.Close()
+func (lib *MusicLibrary) Close() error {
+	err := lib.db.Close()
+	return err
 }
 
 // Index inserts song into library
 func (lib *MusicLibrary) Index(filename string) error {
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return fmt.Errorf("Index: file not found")
+	}
+
+	fmt.Printf("Indexing '%s'...\n", filename)
 	dotIdx := strings.LastIndex(filename, ".")
 	slashIdx := strings.LastIndex(filename, "/")
 	if dotIdx == -1 {
@@ -51,7 +58,11 @@ func (lib *MusicLibrary) Index(filename string) error {
 		return err
 	}
 
-	hashArray := fingerprint.Fingerprint(filename)
+	hashArray, err := fingerprint.Fingerprint(filename)
+	if err != nil {
+		return err
+	}
+
 	for time, hash := range hashArray {
 		lib.db.QueryRow("INSERT INTO hashes(hash, time, sid) VALUES($1, $2, $3) returning hid;", hash, time, songID).Scan()
 	}
@@ -66,8 +77,6 @@ func (lib *MusicLibrary) IndexDir(path string) error {
 		return fmt.Errorf("IndexDir: invalid directory '%s'", path)
 	}
 
-	fmt.Printf("Indexing '%s'...\n", path)
-
 	wg := sizedwaitgroup.New(8)
 	for _, f := range files {
 		filename := path + "/" + f.Name()
@@ -76,7 +85,6 @@ func (lib *MusicLibrary) IndexDir(path string) error {
 			go func() {
 				defer wg.Done()
 				lib.Index(filename)
-				// checkErr(err)
 			}()
 		}
 	}
@@ -96,10 +104,15 @@ type candidate struct {
 }
 
 // Recognize searches library and returns table
-func (lib *MusicLibrary) Recognize(filename string) (result string) {
-	cnt := make(map[uint]*table)
+func (lib *MusicLibrary) Recognize(filename string) (result string, err error) {
+	fmt.Printf("Recognizing '%s'...\n", filename)
 
-	hashArray := fingerprint.Fingerprint(filename)
+	hashArray, err := fingerprint.Fingerprint(filename)
+	if err != nil {
+		return "", err
+	}
+
+	cnt := make(map[uint]*table)
 	for t, h := range hashArray {
 		rows, err := lib.db.Query("SELECT * FROM hashes WHERE hash=$1;", h)
 		checkErr(err)
@@ -124,7 +137,6 @@ func (lib *MusicLibrary) Recognize(filename string) (result string) {
 	}
 
 	matchings := make([]*candidate, 0)
-	fmt.Printf("Recognizing '%s'...\n", filename)
 	for song, table := range cnt {
 		matchings = append(matchings, &candidate{song, table.absoluteBest})
 	}
@@ -141,12 +153,18 @@ func (lib *MusicLibrary) Recognize(filename string) (result string) {
 }
 
 // Delete deletes song from library
-func (lib *MusicLibrary) Delete(song string) error {
-	fmt.Printf("Deleting '%s'\n", song)
+func (lib *MusicLibrary) Delete(song string) (affected int64, err error) {
+	fmt.Printf("Deleting '%s'...\n", song)
 	statement, err := lib.db.Prepare("DELETE FROM songs WHERE song=$1;")
-	checkErr(err)
-	_, err = statement.Exec(song)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	res, err := statement.Exec(song)
+	if err != nil {
+		return 0, err
+	}
+	affected, err = res.RowsAffected()
+	return affected, err
 }
 
 func checkErr(err error) {

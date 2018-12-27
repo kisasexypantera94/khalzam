@@ -26,7 +26,7 @@ const fuzzFactor = 2
 
 var freqBins = [...]int16{40, 80, 120, 180, 300}
 
-// DecodeMp3 returns float32 slice of samples
+// DecodeMp3 decodes mp3 files and returns float64 slice of samples
 func DecodeMp3(filename string) []float64 {
 	decoder, err := mpg123.NewDecoder("")
 	checkErr(err)
@@ -115,14 +115,14 @@ func DecodeWav(filename string) []float64 {
 		}
 	}
 
-	f, _ := os.Create(filename + ".raw")
-	binary.Write(f, binary.LittleEndian, pcm)
-
 	return pcm
 }
 
 // Fingerprint returns a fingerprint of song
-func Fingerprint(filename string) (hashArray []string) {
+func Fingerprint(filename string) (hashArray []string, err error) {
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return nil, fmt.Errorf("Fingerprint: file not found")
+	}
 	var pcm64 []float64
 	switch filepath.Ext(filename) {
 	case ".mp3":
@@ -133,6 +133,9 @@ func Fingerprint(filename string) (hashArray []string) {
 
 	case ".ogg":
 		pcm64 = DecodeOgg(filename)
+
+	default:
+		return nil, fmt.Errorf("Fingerprint: invalid file")
 	}
 
 	blockNum := len(pcm64) / fftWindowSize
@@ -142,7 +145,7 @@ func Fingerprint(filename string) (hashArray []string) {
 		hashArray = append(hashArray, getKeyPoints(complexArray))
 	}
 
-	return hashArray
+	return hashArray, nil
 }
 
 func getKeyPoints(compArr []complex128) string {
@@ -163,16 +166,19 @@ func getKeyPoints(compArr []complex128) string {
 		}
 	}
 
-	tmp := (recordPoints[3]-(recordPoints[3]%fuzzFactor))*1e8 +
-		(recordPoints[2]-(recordPoints[2]%fuzzFactor))*1e5 +
-		(recordPoints[1]-(recordPoints[1]%fuzzFactor))*1e2 +
-		(recordPoints[0] - recordPoints[0]%fuzzFactor)
-
-	// return hash(recordPoints)
-	return strconv.Itoa((int)(tmp))
+	return hash(recordPoints)
 }
 
 func hash(arr []uint) string {
+	tmp := (arr[3]-(arr[3]%fuzzFactor))*1e8 +
+		(arr[2]-(arr[2]%fuzzFactor))*1e5 +
+		(arr[1]-(arr[1]%fuzzFactor))*1e2 +
+		(arr[0] - arr[0]%fuzzFactor)
+
+	return strconv.Itoa((int)(tmp))
+}
+
+func hashMd5(arr []uint) string {
 	h := md5.New()
 	str := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(arr)), ""), "[]")
 	io.WriteString(h, str)

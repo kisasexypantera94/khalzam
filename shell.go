@@ -28,7 +28,9 @@ func main() {
 				err := mLib.Index(arg)
 				if err != nil {
 					c.Println(err)
+					return
 				}
+				c.Println("Done")
 			}
 		},
 	})
@@ -45,7 +47,9 @@ func main() {
 				err := mLib.IndexDir(arg)
 				if err != nil {
 					c.Println(err)
+					return
 				}
+				c.Println("Done")
 			}
 		},
 	})
@@ -59,9 +63,15 @@ func main() {
 			}
 
 			for _, arg := range c.Args {
-				err := mLib.Delete(arg)
+				affected, err := mLib.Delete(arg)
 				if err != nil {
 					c.Println(err)
+					return
+				}
+				if affected > 0 {
+					c.Println("Done")
+				} else {
+					c.Println("Audio not found")
 				}
 			}
 		},
@@ -76,7 +86,12 @@ func main() {
 			}
 
 			for _, arg := range c.Args {
-				res := mLib.Recognize(arg)
+				res, err := mLib.Recognize(arg)
+				if err != nil {
+					c.Println(err)
+					return
+				}
+
 				c.Println(res)
 			}
 		},
