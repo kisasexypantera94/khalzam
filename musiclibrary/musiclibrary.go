@@ -13,23 +13,30 @@ import (
 	"strings"
 )
 
-const (
-	dbUser     = "kisasexypantera94"
-	dbPassword = ""
-	dbName     = "khalzam"
-)
+// Config holds the configuration used for database
+type Config struct {
+	User     string
+	Password string
+	Host     string
+	Port     string
+	DBname   string
+}
 
-// MusicLibrary ...
+// MusicLibrary holds audio database
 type MusicLibrary struct {
 	db *sql.DB
 }
 
 // Open return pointer to existing library
-func Open() (*MusicLibrary, error) {
+func Open(cfg *Config) (*MusicLibrary, error) {
 	fmt.Printf("Initializing library...\n\n")
-
-	dbinfo := fmt.Sprintf("user=%s dbname=%s sslmode=disable", dbUser, dbName)
+	dbinfo := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBname)
 	db, err := sql.Open("postgres", dbinfo)
+	err = db.Ping()
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
 	return &MusicLibrary{db}, err
 }
 
@@ -58,7 +65,7 @@ func (lib *MusicLibrary) Index(filename string) error {
 		return err
 	}
 
-	hashArray, err := fingerprint.Fingerprint(filename)
+	hashArray, err := fingerprint.ParallelFingerprint(filename)
 	if err != nil {
 		return err
 	}
@@ -107,7 +114,7 @@ type candidate struct {
 func (lib *MusicLibrary) Recognize(filename string) (result string, err error) {
 	fmt.Printf("Recognizing '%s'...\n", filename)
 
-	hashArray, err := fingerprint.Fingerprint(filename)
+	hashArray, err := fingerprint.ParallelFingerprint(filename)
 	if err != nil {
 		return "", err
 	}

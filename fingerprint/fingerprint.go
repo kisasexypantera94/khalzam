@@ -16,8 +16,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
+	"sync"
 )
 
 const chunkSize = 1024
@@ -119,10 +119,11 @@ func DecodeWav(filename string) []float64 {
 }
 
 // Fingerprint returns a fingerprint of song
-func Fingerprint(filename string) (hashArray []string, err error) {
+func Fingerprint(filename string) (hashArray []int, err error) {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return nil, fmt.Errorf("Fingerprint: file not found")
 	}
+
 	var pcm64 []float64
 	switch filepath.Ext(filename) {
 	case ".mp3":
@@ -148,7 +149,64 @@ func Fingerprint(filename string) (hashArray []string, err error) {
 	return hashArray, nil
 }
 
-func getKeyPoints(compArr []complex128) string {
+type output struct {
+	idx int
+	val int
+}
+
+// ParallelFingerprint returns a fingerprint of song
+func ParallelFingerprint(filename string) (hashArray []int, err error) {
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return nil, fmt.Errorf("Fingerprint: file not found")
+	}
+
+	var pcm64 []float64
+	switch filepath.Ext(filename) {
+	case ".mp3":
+		pcm64 = DecodeMp3(filename)
+
+	case ".wav":
+		pcm64 = DecodeWav(filename)
+
+	case ".ogg":
+		pcm64 = DecodeOgg(filename)
+
+	default:
+		return nil, fmt.Errorf("Fingerprint: invalid file")
+	}
+
+	blockNum := len(pcm64) / fftWindowSize
+	wg := new(sync.WaitGroup)
+	ch := make(chan output, 60)
+	hashArray = make([]int, blockNum, blockNum)
+
+	for i := 0; i < blockNum; i++ {
+		wg.Add(1)
+		go func(idx int, ch chan output, wg *sync.WaitGroup) {
+			defer wg.Done()
+			complexArray := fft.FFTReal(pcm64[idx*fftWindowSize : idx*fftWindowSize+fftWindowSize])
+			out := output{idx, getKeyPoints(complexArray)}
+			ch <- out
+		}(i, ch, wg)
+	}
+
+	quit := make(chan bool)
+	go func() {
+		wg.Wait()
+		quit <- true
+	}()
+
+	for {
+		select {
+		case output := <-ch:
+			hashArray[output.idx] = output.val
+		case <-quit:
+			return hashArray, nil
+		}
+	}
+}
+
+func getKeyPoints(compArr []complex128) int {
 	highScores := make([]float64, len(freqBins))
 	recordPoints := make([]uint, len(freqBins))
 
@@ -169,13 +227,13 @@ func getKeyPoints(compArr []complex128) string {
 	return hash(recordPoints)
 }
 
-func hash(arr []uint) string {
+func hash(arr []uint) int {
 	tmp := (arr[3]-(arr[3]%fuzzFactor))*1e8 +
 		(arr[2]-(arr[2]%fuzzFactor))*1e5 +
 		(arr[1]-(arr[1]%fuzzFactor))*1e2 +
 		(arr[0] - arr[0]%fuzzFactor)
 
-	return strconv.Itoa((int)(tmp))
+	return (int)(tmp)
 }
 
 func hashMd5(arr []uint) string {
