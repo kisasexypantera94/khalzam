@@ -25,7 +25,7 @@ SET default_with_oids = false;
 
 CREATE TABLE public.hashes (
     hid integer NOT NULL,
-    hash text,
+    hash bigint,
     "time" integer,
     sid integer
 );

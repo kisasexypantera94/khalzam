@@ -9,9 +9,11 @@ You need to create and initialize database:
 ➜  khalzam git:(master) ✗ createdb -O user databasename
 ➜  khalzam git:(master) ✗ psql -f createdb.sql databasename
 ```
+
+## Usage
 ### Shell mode
 ```
-➜  khalzam git:(master) ✗ go run shell.go
+➜  khalzam git:(master) ✗ DBUSER=kisasexypantera94 DBNAME=khalzam go run shell.go
 Initializing library...
 
 MusicLibrary interactive shell
@@ -45,7 +47,15 @@ import (
 )
 
 func main() {
-	musicLib, _ := musiclibrary.Open()
+	cfg := &musiclibrary.Config{
+		User:     os.Getenv("DBUSER"),
+		Password: os.Getenv("DBPASSWORD"),
+		DBname:   os.Getenv("DBNAME"),
+		Host:     os.Getenv("DBHOST"),
+		Port:     os.Getenv("DBPORT"),
+	}
+
+	musicLib, _ := musiclibrary.Open(cfg)
 	defer musicLib.Close()
 
 	musicLib.Index("resources/Modjo - Lady (Hear Me Tonight).mp3")
