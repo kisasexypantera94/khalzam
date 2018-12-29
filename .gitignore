@@ -1,8 +1,10 @@
 .DS_Store
 *vscode
 resources*
+samples*
 *raw
 converttomonopcm.sh
 main.go
 proto.ipynb
 *.ipynb_checkpoints*
+resetseq.sql
