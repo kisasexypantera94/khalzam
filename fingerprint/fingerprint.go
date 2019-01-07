@@ -5,20 +5,24 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"fmt"
-	"github.com/bobertlo/go-mpg123/mpg123"
 	"github.com/jfreymuth/oggvorbis"
+	"github.com/kisasexypantera94/go-mpg123/mpg123"
 	"github.com/mjibson/go-dsp/fft"
 	"github.com/youpy/go-wav"
 	"io"
 	"log"
-	"math"
 	"math/cmplx"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 )
+
+/*
+#include <mpg123.h>
+#cgo LDFLAGS: -lmpg123
+*/
+import "C"
 
 const chunkSize = 1024
 const fftWindowSize = 4096
@@ -28,20 +32,17 @@ var freqBins = [...]int16{40, 80, 120, 180, 300}
 
 // DecodeMp3 decodes mp3 files and returns float64 slice of samples
 func DecodeMp3(filename string) []float64 {
-	decoder, err := mpg123.NewDecoder("")
+	decoder, err := mpg123.NewDecoder("", C.MPG123_MONO_MIX|C.MPG123_FORCE_FLOAT)
 	checkErr(err)
 
 	err = decoder.Open(filename)
 	checkErr(err)
 	defer decoder.Close()
 
-	rate, channels, _ := decoder.GetFormat()
-	decoder.FormatNone()
-	decoder.Format(rate, channels, mpg123.ENC_SIGNED_16)
+	decoder.GetFormat()
 
-	var pcmLeft []float32
-	var pcmRight []float32
-	tmp := make([]int16, chunkSize/2)
+	var pcm64 []float64
+	tmp := make([]float32, chunkSize/4)
 	for {
 		buf := make([]byte, chunkSize)
 		_, err := decoder.Read(buf)
@@ -51,27 +52,10 @@ func DecodeMp3(filename string) []float64 {
 		}
 
 		binary.Read(bytes.NewBuffer(buf), binary.LittleEndian, tmp)
-		if channels == 2 {
-			for i := 0; i < len(tmp); i += 2 {
-				left := (tmp[i])
-				right := (tmp[i+1])
-				pcmLeft = append(pcmLeft, (float32)(left)/(float32)(math.MaxInt16))
-				pcmRight = append(pcmRight, (float32)(right)/(float32)(math.MaxInt16))
-			}
-		} else {
-			for i := 0; i < len(tmp); i++ {
-				mono := tmp[i]
-				pcmLeft = append(pcmLeft, (float32)(mono)/(float32)(math.MaxInt16))
-			}
+		for i := 0; i < len(tmp); i++ {
+			mono := tmp[i]
+			pcm64 = append(pcm64, (float64)(mono))
 		}
-	}
-
-	pcm64 := make([]float64, len(pcmLeft)+len(pcmRight))
-	for i := range pcmLeft {
-		pcm64[i] = (float64)(pcmLeft[i])
-	}
-	for i := range pcmRight {
-		pcm64[i+len(pcmLeft)] = (float64)(pcmRight[i])
 	}
 
 	decoder.Delete()
@@ -99,9 +83,8 @@ func DecodeOgg(filename string) []float64 {
 // DecodeWav decodes wav file to slice of float64 values
 func DecodeWav(filename string) []float64 {
 	file, _ := os.Open(filename)
-	reader := wav.NewReader(file)
-
 	defer file.Close()
+	reader := wav.NewReader(file)
 
 	var pcm []float64
 	for {
@@ -128,24 +111,19 @@ func Fingerprint(filename string) (hashArray []int, err error) {
 	switch filepath.Ext(filename) {
 	case ".mp3":
 		pcm64 = DecodeMp3(filename)
-
 	case ".wav":
 		pcm64 = DecodeWav(filename)
-
 	case ".ogg":
 		pcm64 = DecodeOgg(filename)
-
 	default:
 		return nil, fmt.Errorf("Fingerprint: invalid file")
 	}
 
 	blockNum := len(pcm64) / fftWindowSize
-
 	for i := 0; i < blockNum; i++ {
 		complexArray := fft.FFTReal(pcm64[i*fftWindowSize : i*fftWindowSize+fftWindowSize])
 		hashArray = append(hashArray, getKeyPoints(complexArray))
 	}
-
 	return hashArray, nil
 }
 
@@ -164,13 +142,10 @@ func ParallelFingerprint(filename string) (hashArray []int, err error) {
 	switch filepath.Ext(filename) {
 	case ".mp3":
 		pcm64 = DecodeMp3(filename)
-
 	case ".wav":
 		pcm64 = DecodeWav(filename)
-
 	case ".ogg":
 		pcm64 = DecodeOgg(filename)
-
 	default:
 		return nil, fmt.Errorf("Fingerprint: invalid file")
 	}
@@ -243,19 +218,6 @@ func hashMd5(arr []uint) string {
 
 	// return fmt.Sprintf("%x", h.Sum(nil))
 	return str
-}
-
-// stereoToMonoFFMPEG converts file to mono using ffmpeg
-func stereoToMonoFFMPEG(filename string) string {
-	dotIdx := strings.LastIndex(filename, ".")
-	monoFilename := filename[:dotIdx] + "_mono"
-	if dotIdx != -1 {
-		monoFilename += filename[dotIdx:]
-	}
-	fmt.Println(monoFilename)
-	err := exec.Command("/usr/local/bin/ffmpeg", "-i", filename, "-ac", "1", monoFilename).Run()
-	checkErr(err)
-	return monoFilename
 }
 
 func checkErr(err error) {
