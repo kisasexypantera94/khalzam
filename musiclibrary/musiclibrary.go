@@ -159,6 +159,30 @@ func (lib *MusicLibrary) Recognize(filename string) (result string, err error) {
 	return
 }
 
+// RecognizeDir recognizes whole directory
+func (lib *MusicLibrary) RecognizeDir(path string) error {
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return fmt.Errorf("IndexDir: invalid directory '%s'", path)
+	}
+
+	for _, f := range files {
+		filename := path + "/" + f.Name()
+		if filepath.Ext(f.Name()) == ".mp3" {
+			res, err := lib.Recognize(filename)
+
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+
+			fmt.Println(res)
+		}
+	}
+
+	return nil
+}
+
 // Delete deletes song from library
 func (lib *MusicLibrary) Delete(song string) (affected int64, err error) {
 	fmt.Printf("Deleting '%s'...\n", song)

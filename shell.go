@@ -44,7 +44,7 @@ func main() {
 				c.Println("Done")
 			}
 			elapsed := time.Since(start)
-			c.Printf("Finished in %s\n", elapsed.Seconds)
+			c.Printf("Finished in %s\n", elapsed)
 		},
 	})
 
@@ -113,6 +113,28 @@ func main() {
 				}
 
 				c.Println(res)
+			}
+			elapsed := time.Since(start)
+			c.Printf("Finished in %s\n", elapsed)
+		},
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name: "recognizedir",
+		Help: "recognize directory",
+		Func: func(c *ishell.Context) {
+			if len(c.Args) == 0 {
+				c.Println("usage: recognize dir ...")
+			}
+
+			start := time.Now()
+			for _, arg := range c.Args {
+				err := mLib.RecognizeDir(arg)
+				if err != nil {
+					c.Println(err)
+					continue
+				}
+				c.Println("Done")
 			}
 			elapsed := time.Since(start)
 			c.Printf("Finished in %s\n", elapsed)
