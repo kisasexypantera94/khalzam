@@ -8,3 +8,6 @@ main.go
 proto.ipynb
 *.ipynb_checkpoints*
 resetseq.sql
+dump.rdb
+*test.go
+khalzam
