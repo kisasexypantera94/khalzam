@@ -73,9 +73,6 @@ func DecodeOgg(filename string) []float64 {
 	for i := 0; i < len(pcm32); i++ {
 		pcm64[i] = (float64)(pcm32[i])
 	}
-	fn, _ := os.Create(filename + ".raw")
-	defer fn.Close()
-	binary.Write(fn, binary.LittleEndian, pcm64)
 
 	return pcm64
 }
@@ -152,7 +149,7 @@ func ParallelFingerprint(filename string) (hashArray []int, err error) {
 
 	blockNum := len(pcm64) / fftWindowSize
 	wg := new(sync.WaitGroup)
-	ch := make(chan output, 60)
+	ch := make(chan output, 100)
 	hashArray = make([]int, blockNum, blockNum)
 
 	for i := 0; i < blockNum; i++ {
@@ -206,7 +203,7 @@ func hash(arr []uint) int {
 	tmp := (arr[3]-(arr[3]%fuzzFactor))*1e8 +
 		(arr[2]-(arr[2]%fuzzFactor))*1e5 +
 		(arr[1]-(arr[1]%fuzzFactor))*1e2 +
-		(arr[0] - arr[0]%fuzzFactor)
+		(arr[0] -(arr[0]%fuzzFactor))
 
 	return (int)(tmp)
 }
