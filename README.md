@@ -5,11 +5,11 @@ Khalzam is a simple audio recognition library. Its algrorithm is based on
 
 ## Dependencies 
 Fingerprint library uses mpg123 (thinking of switching to a native solution) so you need to install it:
-### macOS (Homebrew)
+#### macOS (Homebrew)
 ```
 $ brew install mpg123
 ```
-### Debian
+#### Debian
 ```
 $ sudo apt-get install libmpg123-dev
 ```
@@ -22,7 +22,7 @@ $ psql -f createdb.sql databasename
 ```
 
 ## Usage
-### Shell mode
+#### Shell mode
 ```
 $ DBUSER=kisasexypantera94 DBNAME=khalzam go run shell.go
 Initializing library...
@@ -48,7 +48,7 @@ Recognizing 'samples/modjo_lady_sample.mp3'...
 Best match: Modjo - Lady (Hear Me Tonight) (11% matched)
 ```
 
-### API
+#### API
 ```golang
 package main
 
