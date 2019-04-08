@@ -71,7 +71,7 @@ func main() {
 	defer musicLib.Close()
 
 	musicLib.Index("resources/Modjo - Lady (Hear Me Tonight).mp3")
-	result := musicLib.Recognize("resources/modjo_lady_sample.mp3")
+	result := musicLib.Recognize("samples/modjo_lady_sample.mp3")
 	fmt.Println(result)
 }
 ```

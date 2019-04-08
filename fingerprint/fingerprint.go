@@ -24,13 +24,13 @@ import (
 */
 import "C"
 
-const chunkSize = 1024
+const chunkSize = 2048
 const fftWindowSize = 4096
 const fuzzFactor = 2
 
 var freqBins = [...]int16{40, 80, 120, 180, 300}
 
-// DecodeMp3 decodes mp3 files and returns float64 slice of samples
+// DecodeMp3 decodes mp3 files using `libmpg123`
 func DecodeMp3(filename string) []float64 {
 	decoder, err := mpg123.NewDecoder("", C.MPG123_MONO_MIX|C.MPG123_FORCE_FLOAT)
 	checkErr(err)
@@ -77,7 +77,7 @@ func DecodeOgg(filename string) []float64 {
 	return pcm64
 }
 
-// DecodeWav decodes wav file to slice of float64 values
+// DecodeWav decodes wav files
 func DecodeWav(filename string) []float64 {
 	file, _ := os.Open(filename)
 	defer file.Close()
@@ -98,7 +98,7 @@ func DecodeWav(filename string) []float64 {
 	return pcm
 }
 
-// Fingerprint returns a fingerprint of song
+// Fingerprint constructs fingerprint for song
 func Fingerprint(filename string) (hashArray []int, err error) {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return nil, fmt.Errorf("Fingerprint: file not found")
@@ -129,7 +129,8 @@ type output struct {
 	val int
 }
 
-// ParallelFingerprint returns a fingerprint of song
+// ParallelFingerprint constructs fingerprint for song.
+// It perform FFT on chunks in goroutines.
 func ParallelFingerprint(filename string) (hashArray []int, err error) {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return nil, fmt.Errorf("Fingerprint: file not found")
@@ -203,9 +204,9 @@ func hash(arr []uint) int {
 	tmp := (arr[3]-(arr[3]%fuzzFactor))*1e8 +
 		(arr[2]-(arr[2]%fuzzFactor))*1e5 +
 		(arr[1]-(arr[1]%fuzzFactor))*1e2 +
-		(arr[0] -(arr[0]%fuzzFactor))
+		(arr[0] - (arr[0] % fuzzFactor))
 
-	return (int)(tmp)
+	return int(tmp)
 }
 
 func hashMd5(arr []uint) string {
@@ -213,7 +214,6 @@ func hashMd5(arr []uint) string {
 	str := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(arr)), ""), "[]")
 	io.WriteString(h, str)
 
-	// return fmt.Sprintf("%x", h.Sum(nil))
 	return str
 }
 

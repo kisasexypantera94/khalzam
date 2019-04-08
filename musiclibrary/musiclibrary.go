@@ -22,16 +22,20 @@ type Config struct {
 	DBname   string
 }
 
-// MusicLibrary holds audio database
+// MusicLibrary is the central structure of the algorithm.
+// It is the link for fingerprinting and repository interaction.
 type MusicLibrary struct {
 	db *sql.DB
 }
 
-// Open return pointer to existing library
+// Open connects to existing audio repository
 func Open(cfg *Config) (*MusicLibrary, error) {
 	fmt.Printf("Initializing library...\n\n")
 	dbinfo := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBname)
 	db, err := sql.Open("postgres", dbinfo)
+	if err != nil {
+		return nil, err
+	}
 	err = db.Ping()
 	if err != nil {
 		db.Close()
@@ -65,13 +69,14 @@ func (lib *MusicLibrary) Index(filename string) error {
 		return err
 	}
 
-	hashArray, err := fingerprint.ParallelFingerprint(filename)
+	hashArray, err := fingerprint.Fingerprint(filename)
 	if err != nil {
 		return err
 	}
 
+	stmt, _ := lib.db.Prepare("INSERT INTO hashes(hash, time, sid) VALUES($1, $2, $3) returning hid;")
 	for time, hash := range hashArray {
-		lib.db.QueryRow("INSERT INTO hashes(hash, time, sid) VALUES($1, $2, $3) returning hid;", hash, time, songID).Scan()
+		stmt.Exec(hash, time, songID)
 	}
 
 	return nil
@@ -136,9 +141,9 @@ func (lib *MusicLibrary) Recognize(filename string) (result string, err error) {
 				cnt[sid].timedeltaBest = make(map[uint]uint)
 			}
 
-			cnt[sid].timedeltaBest[time-(uint)(t)]++
-			if cnt[sid].timedeltaBest[time-(uint)(t)] > cnt[sid].absoluteBest {
-				cnt[sid].absoluteBest = cnt[sid].timedeltaBest[time-(uint)(t)]
+			cnt[sid].timedeltaBest[time-uint(t)]++
+			if cnt[sid].timedeltaBest[time-uint(t)] > cnt[sid].absoluteBest {
+				cnt[sid].absoluteBest = cnt[sid].timedeltaBest[time-uint(t)]
 			}
 		}
 	}
@@ -155,7 +160,7 @@ func (lib *MusicLibrary) Recognize(filename string) (result string, err error) {
 	var songName string
 	lib.db.QueryRow("SELECT song FROM songs WHERE sid=$1;", matchings[0].songID).Scan(&songName)
 
-	result = fmt.Sprintf("Best match: %s (%d%% matched)\n", songName, (int)(100*(float64)(matchings[0].matchNum)/(float64)(len(hashArray))))
+	result = fmt.Sprintf("Best match: %s (%d%% matched)\n", songName, int(100*float64(matchings[0].matchNum)/float64(len(hashArray))))
 	return
 }
 
