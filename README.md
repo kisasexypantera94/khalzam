@@ -1,9 +1,12 @@
 # Khalzam
+This library is very poorly designed and was written purely as proof-of-concept.
+I have rewritten it in Rust and the main development is going [here](https://github.com/kisasexypantera94/khalzam-rs).
+
 ## About
 Khalzam is a simple audio recognition library. Its algrorithm is based on
 [this article](https://www.toptal.com/algorithms/shazam-it-music-processing-fingerprinting-and-recognition) by Jovan Jovanovic
 
-## Dependencies 
+## Dependencies
 Fingerprint library uses mpg123 (thinking of switching to a native solution) so you need to install it:
 #### macOS (Homebrew)
 ```
